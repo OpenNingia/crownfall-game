@@ -7,6 +7,7 @@ import {
   playCards,
   discardCards,
   selectNextPlayer,
+  yieldTurn,
   removePlayer,
   type EngineState,
   type EngineMonster,
@@ -29,6 +30,7 @@ export class CrownfallRoom extends Room<RoomOpts> {
     this.onMessage("selectNextPlayer", (client, payload) =>
       this.handleSelectNextPlayer(client, payload)
     );
+    this.onMessage("yield", (client) => this.handleYield(client));
   }
 
   onJoin(client: Client, options: Record<string, unknown>) {
@@ -112,6 +114,17 @@ export class CrownfallRoom extends Room<RoomOpts> {
       return;
     }
 
+    this.engine = result.state;
+    this.syncStateFromEngine();
+  }
+
+  private handleYield(client: Client) {
+    if (!this.engine) return;
+    const result = yieldTurn(this.engine, client.sessionId);
+    if (result.error) {
+      client.send("error", { message: result.error });
+      return;
+    }
     this.engine = result.state;
     this.syncStateFromEngine();
   }

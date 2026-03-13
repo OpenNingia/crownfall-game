@@ -68,13 +68,21 @@ export default function ActionPanel({ send }: Props) {
 
       <div style={styles.buttons}>
         {phase === "playing" && isMyTurn && (
-          <button
-            style={{ ...styles.btn, ...(canPlay ? styles.btnPlay : styles.btnDisabled) }}
-            onClick={handlePlay}
-            disabled={!canPlay}
-          >
-            Play
-          </button>
+          <>
+            <button
+              style={{ ...styles.btn, ...(canPlay ? styles.btnPlay : styles.btnDisabled) }}
+              onClick={handlePlay}
+              disabled={!canPlay}
+            >
+              Play
+            </button>
+            <button
+              style={{ ...styles.btn, ...styles.btnYield }}
+              onClick={() => send("yield")}
+            >
+              Yield
+            </button>
+          </>
         )}
 
         {phase === "awaiting_discard" && myDiscardRequired > 0 && (
@@ -119,7 +127,8 @@ const styles: Record<string, React.CSSProperties> = {
   btn: { padding: "0.5rem 1.25rem", borderRadius: 6, border: "none", fontWeight: 600, cursor: "pointer" },
   btnPlay: { background: "#238636", color: "#fff" },
   btnDiscard: { background: "#b91c1c", color: "#fff" },
-  btnClear: { background: "#30363d", color: "#8b949e" },
+  btnYield: { background: "#30363d", color: "#e6edf3" },
+  btnClear: { background: "#21262d", color: "#8b949e" },
   btnDisabled: { background: "#21262d", color: "#30363d", cursor: "not-allowed" },
   waiting: { color: "#8b949e", fontSize: "0.9rem" },
   label: { color: "#e6edf3", fontWeight: 600 },

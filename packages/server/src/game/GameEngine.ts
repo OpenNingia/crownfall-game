@@ -65,6 +65,7 @@ export interface EngineState {
   monstersRemaining: number;
   turnNumber: number;
   maxHandSize: number;
+  yieldedLastTurn: Set<string>; // players whose last step-1 action was a yield
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,7 @@ export function initGame(players: { sessionId: string; name: string }[]): Engine
     monstersRemaining: 12,
     turnNumber: 1,
     maxHandSize,
+    yieldedLastTurn: new Set(),
   };
 }
 
@@ -175,6 +177,9 @@ export function playCards(state: EngineState, sessionId: string, cardIds: number
   if (!isValidPlay(cardIds)) {
     return { state, error: "Invalid play", events };
   }
+
+  // Playing a card resets this player's yield streak
+  state.yieldedLastTurn.delete(sessionId);
 
   // Remove cards from hand
   for (const id of cardIds) {
@@ -388,6 +393,42 @@ export interface SelectNextPlayerResult {
   state: EngineState;
   error?: string;
 }
+
+// ---------------------------------------------------------------------------
+// yieldTurn — skip step 1-3, go directly to step 4
+// ---------------------------------------------------------------------------
+
+export interface YieldResult {
+  state: EngineState;
+  error?: string;
+}
+
+export function yieldTurn(state: EngineState, sessionId: string): YieldResult {
+  if (state.phase !== "playing") {
+    return { state, error: "Not in playing phase" };
+  }
+  if (state.currentPlayerSessionId !== sessionId) {
+    return { state, error: "Not your turn" };
+  }
+
+  // Cannot yield if every other connected player yielded on their last turn
+  const others = state.playerOrder.filter(
+    (sid) => sid !== sessionId && state.players.get(sid)?.connected
+  );
+  if (others.length > 0 && others.every((sid) => state.yieldedLastTurn.has(sid))) {
+    return { state, error: "Cannot yield: all other players have already yielded" };
+  }
+
+  state.yieldedLastTurn.add(sessionId);
+
+  // Skip steps 1-3; go directly to step 4 (monster attacks)
+  const events: PlayEvent[] = [];
+  return handleMonsterAttack(state, sessionId, events);
+}
+
+// ---------------------------------------------------------------------------
+// selectNextPlayer — joker followup
+// ---------------------------------------------------------------------------
 
 export function selectNextPlayer(
   state: EngineState,

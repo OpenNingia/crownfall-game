@@ -4,6 +4,7 @@ import {
   playCards,
   discardCards,
   selectNextPlayer,
+  yieldTurn,
   type EngineState,
 } from "./GameEngine.js";
 import {
@@ -833,6 +834,108 @@ describe("Animal Companion (Ace) pairing", () => {
     playCards(state, "p1", [ACE_H, THREE_H]);
     // Heal = attack value of play = 1+3 = 4 (hearts power once at combined value)
     expect(state.tavern.length).toBe(tavernBefore + 4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Yielding
+// ---------------------------------------------------------------------------
+
+describe("yielding", () => {
+  it("yield skips steps 1-3 and goes directly to monster attack", () => {
+    const state = freshState(2);
+    state.currentPlayerSessionId = "p1";
+    setHand(state, "p1", [TWO_H, THREE_H, FOUR_C, FIVE_D, SIX_D, SEVEN_H, EIGHT_H]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 5 });
+    const r = yieldTurn(state, "p1");
+    expect(r.error).toBeUndefined();
+    // Monster attacks (5 damage, no shields) → awaiting_discard
+    expect(r.state.phase).toBe("awaiting_discard");
+    expect(r.state.discardRequired.get("p1")).toBe(5);
+  });
+
+  it("yield does not deal damage to monster", () => {
+    const state = freshState(2);
+    setHand(state, "p1", [TWO_H, THREE_H, FOUR_C, FIVE_D]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+    yieldTurn(state, "p1");
+    expect(state.currentMonster.currentHp).toBe(100);
+  });
+
+  it("after yield + no damage: turn advances to next player", () => {
+    const state = freshState(2);
+    state.currentPlayerSessionId = "p1";
+    setHand(state, "p1", [TWO_H]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+    yieldTurn(state, "p1");
+    expect(state.phase).toBe("playing");
+    expect(state.currentPlayerSessionId).toBe("p2");
+  });
+
+  it("cannot yield if every other player already yielded on their last turn", () => {
+    const state = freshState(2);
+    state.currentPlayerSessionId = "p1";
+    setHand(state, "p1", [TWO_H, THREE_H, FOUR_C]);
+    setHand(state, "p2", [TWO_D, THREE_D, FOUR_S]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+
+    // p1 yields → turn passes to p2
+    yieldTurn(state, "p1");
+    expect(state.currentPlayerSessionId).toBe("p2");
+
+    // p2 now tries to yield: p1 already yielded → p2 cannot yield
+    const r = yieldTurn(state, "p2");
+    expect(r.error).toBeTruthy();
+  });
+
+  it("after a player plays a card, the consecutive yield chain resets", () => {
+    const state = freshState(2);
+    state.currentPlayerSessionId = "p1";
+    setHand(state, "p1", [TWO_H, THREE_H, FOUR_C]);
+    setHand(state, "p2", [TWO_D, THREE_D, FOUR_S]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+
+    // p1 yields
+    yieldTurn(state, "p1");
+    // p2 plays a card (chain reset)
+    playCards(state, "p2", [TWO_D]);
+    expect(state.currentPlayerSessionId).toBe("p1");
+    // p1 can now yield again (p2's last action was a play, not a yield)
+    const r = yieldTurn(state, "p1");
+    expect(r.error).toBeUndefined();
+  });
+
+  it("cannot yield on another player's turn", () => {
+    const state = freshState(2);
+    state.currentPlayerSessionId = "p1";
+    const r = yieldTurn(state, "p2");
+    expect(r.error).toBeTruthy();
+  });
+
+  it("cannot yield outside playing phase", () => {
+    const state = freshState(2);
+    state.phase = "awaiting_discard";
+    const r = yieldTurn(state, "p1");
+    expect(r.error).toBeTruthy();
+  });
+
+  it("3-player: need all OTHER two to have yielded before block triggers", () => {
+    const state = freshState(3);
+    state.currentPlayerSessionId = "p1";
+    setHand(state, "p1", [TWO_H, THREE_H, FOUR_C, FIVE_D, SIX_D, SEVEN_H]);
+    setHand(state, "p2", [TWO_D, THREE_D, FOUR_S, FIVE_C, SIX_D, SEVEN_H]);
+    setHand(state, "p3", [ACE_H, TWO_C, THREE_C, FOUR_C, FIVE_D, SIX_D]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+
+    yieldTurn(state, "p1"); // p1 yields → p2's turn
+    yieldTurn(state, "p2"); // p2 yields → p3's turn
+    // p3: both p1 and p2 yielded → p3 CANNOT yield
+    const r = yieldTurn(state, "p3");
+    expect(r.error).toBeTruthy();
+
+    // But p3 CAN play a card
+    const playResult = playCards(state, "p3", [ACE_H]);
+    expect(playResult.error).toBeUndefined();
   });
 });
 
