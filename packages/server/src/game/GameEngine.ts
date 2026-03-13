@@ -14,8 +14,6 @@ import {
   getAttackValue,
   MONSTER_STATS,
   HAND_SIZES,
-  JOKER_BLACK,
-  JOKER_RED,
 } from "@crownfall/shared";
 import type { Suit } from "@crownfall/shared";
 import { buildTavernDeck, buildCastleDeck, shuffle } from "./Deck.js";
@@ -32,13 +30,14 @@ export interface EngineMonster {
   currentHp: number;
   attack: number;
   immunityNegated: boolean;
+  spadeReduction: number; // cumulative spades played against this monster
 }
 
 export interface EnginePlayer {
   sessionId: string;
   name: string;
   hand: number[];
-  shields: number;
+  shields: number; // this player's spades contribution to the current monster (display only)
   connected: boolean;
   ready: boolean;
 }
@@ -62,9 +61,10 @@ export interface EngineState {
   boardCards: number[];
   pendingDamage: number;
   currentPlayerSessionId: string;
-  discardRequired: Map<string, number>; // sessionId → cards to discard
+  discardRequired: Map<string, number>; // sessionId → damage value to cover
   monstersRemaining: number;
   turnNumber: number;
+  maxHandSize: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,10 +72,11 @@ export interface EngineState {
 // ---------------------------------------------------------------------------
 
 export function initGame(players: { sessionId: string; name: string }[]): EngineState {
-  const tavern = buildTavernDeck();
-  const castleDeck = buildCastleDeck();
   const playerCount = players.length;
-  const handSize = HAND_SIZES[playerCount] ?? 6;
+  const tavern = buildTavernDeck(playerCount);
+  const castleDeck = buildCastleDeck();
+  const handSize = HAND_SIZES[playerCount] ?? 5;
+  const maxHandSize = handSize;
 
   const playerMap = new Map<string, EnginePlayer>();
   const playerOrder: string[] = [];
@@ -111,6 +112,7 @@ export function initGame(players: { sessionId: string; name: string }[]): Engine
     discardRequired: new Map(),
     monstersRemaining: 12,
     turnNumber: 1,
+    maxHandSize,
   };
 }
 
@@ -126,6 +128,7 @@ function makeMonster(cardId: number): EngineMonster {
     currentHp: stats.hp,
     attack: stats.attack,
     immunityNegated: false,
+    spadeReduction: 0,
   };
 }
 
@@ -201,21 +204,22 @@ export function playCards(state: EngineState, sessionId: string, cardIds: number
   const damage = computeDamage(cardIds, monster.suit, monster.immunityNegated);
   state.pendingDamage += damage;
 
-  // Apply Hearts: heal from discard pile back to tavern
+  // Apply Hearts: heal from discard pile back to tavern (before diamonds, per rules)
   if (effects.heartHeal > 0) {
     const healed = recycleFromDiscard(state, effects.heartHeal);
     if (healed > 0) events.push({ type: "heal", count: healed });
   }
 
-  // Apply Diamonds: draw cards
+  // Apply Diamonds: draw cards round-robin starting from current player
   if (effects.diamondDraw > 0) {
-    const drawn = drawCards(state, sessionId, effects.diamondDraw);
+    const drawn = drawCardsRoundRobin(state, sessionId, effects.diamondDraw);
     if (drawn > 0) events.push({ type: "draw", count: drawn });
   }
 
-  // Apply Spades: shields
+  // Apply Spades: reduce monster's effective attack (cumulative, persists until defeated)
   if (effects.spadeShield > 0) {
-    player.shields += effects.spadeShield;
+    monster.spadeReduction += effects.spadeShield;
+    player.shields += effects.spadeShield; // display: this player's contribution
     events.push({ type: "shields", amount: effects.spadeShield });
   }
 
@@ -256,13 +260,22 @@ function handleMonsterDefeated(
   events: PlayEvent[]
 ): PlayResult {
   const monsterId = state.currentMonster.cardId;
+  const exactKill = state.currentMonster.currentHp === 0;
   events.push({ type: "monsterDefeated", monsterId });
 
-  // Move board cards to discard
+  // Exact kill: monster goes on top of Tavern; otherwise to discard
+  if (exactKill) {
+    state.tavern.unshift(monsterId);
+  } else {
+    state.discard.push(monsterId);
+  }
+
+  // Board cards to discard; reset player shields (new monster, fresh spade slate)
   state.discard.push(...state.boardCards);
   state.boardCards = [];
   state.pendingDamage = 0;
   state.monstersRemaining--;
+  for (const p of state.players.values()) p.shields = 0;
 
   // Victory check
   if (state.castleDeck.length === 0 && state.monstersRemaining === 0) {
@@ -291,14 +304,16 @@ function handleMonsterAttack(
   const monster = state.currentMonster;
   const player = state.players.get(sessionId)!;
 
-  const discardNeeded = computeDiscardRequired(monster.attack, player.shields);
+  const discardNeeded = computeDiscardRequired(monster.attack, monster.spadeReduction);
 
   if (discardNeeded === 0) {
     advanceTurn(state);
     return { state, events };
   }
 
-  if (discardNeeded > player.hand.length) {
+  // Defeat if player can't cover the damage with the total value of their hand
+  const maxCoverable = player.hand.reduce((sum, id) => sum + getAttackValue(id), 0);
+  if (maxCoverable < discardNeeded) {
     state.phase = "defeat";
     events.push({ type: "defeat" });
     return { state, events };
@@ -330,12 +345,9 @@ export function discardCards(
     return { state, error: "Not in discard phase" };
   }
 
-  const required = state.discardRequired.get(sessionId);
-  if (required === undefined || required === 0) {
+  const requiredValue = state.discardRequired.get(sessionId);
+  if (requiredValue === undefined || requiredValue === 0) {
     return { state, error: "You don't need to discard" };
-  }
-  if (cardIds.length !== required) {
-    return { state, error: `Must discard exactly ${required} cards` };
   }
 
   const player = state.players.get(sessionId)!;
@@ -343,6 +355,11 @@ export function discardCards(
     if (!player.hand.includes(id)) {
       return { state, error: `Card ${id} not in hand` };
     }
+  }
+
+  const totalValue = cardIds.reduce((sum, id) => sum + getAttackValue(id), 0);
+  if (totalValue < requiredValue) {
+    return { state, error: `Must discard cards totalling at least ${requiredValue} (got ${totalValue})` };
   }
 
   // Remove from hand and add to discard
@@ -396,10 +413,6 @@ export function selectNextPlayer(
 // ---------------------------------------------------------------------------
 
 function advanceTurn(state: EngineState): void {
-  // Reset only the active player's shields (they protected this turn's attack)
-  const current = state.players.get(state.currentPlayerSessionId);
-  if (current) current.shields = 0;
-
   const currentIdx = state.playerOrder.indexOf(state.currentPlayerSessionId);
   const nextIdx = (currentIdx + 1) % state.playerOrder.length;
   state.currentPlayerSessionId = state.playerOrder[nextIdx];
@@ -407,14 +420,34 @@ function advanceTurn(state: EngineState): void {
   state.turnNumber++;
 }
 
-function drawCards(state: EngineState, sessionId: string, count: number): number {
-  const player = state.players.get(sessionId)!;
+/**
+ * Distribute `total` card draws round-robin starting from `startSessionId`,
+ * skipping players at max hand size. Returns total cards actually drawn.
+ */
+function drawCardsRoundRobin(state: EngineState, startSessionId: string, total: number): number {
+  const startIdx = state.playerOrder.indexOf(startSessionId);
+  const order = [
+    ...state.playerOrder.slice(startIdx),
+    ...state.playerOrder.slice(0, startIdx),
+  ];
+
   let drawn = 0;
-  for (let i = 0; i < count; i++) {
-    if (state.tavern.length === 0) break;
-    player.hand.push(state.tavern.shift()!);
-    drawn++;
+  let remaining = total;
+
+  while (remaining > 0 && state.tavern.length > 0) {
+    let drewThisRound = false;
+    for (const sid of order) {
+      if (remaining <= 0 || state.tavern.length === 0) break;
+      const p = state.players.get(sid)!;
+      if (p.hand.length >= state.maxHandSize) continue;
+      p.hand.push(state.tavern.shift()!);
+      drawn++;
+      remaining--;
+      drewThisRound = true;
+    }
+    if (!drewThisRound) break; // all players at max hand size
   }
+
   return drawn;
 }
 

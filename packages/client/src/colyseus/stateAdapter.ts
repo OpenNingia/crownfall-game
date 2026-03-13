@@ -45,6 +45,7 @@ export function adaptState(
         currentHp: monster.currentHp,
         attack: monster.attack,
         immunityNegated: monster.immunityNegated,
+        spadeReduction: monster.spadeReduction ?? 0,
       }
     : null;
 

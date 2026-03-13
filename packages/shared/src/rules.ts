@@ -34,16 +34,36 @@ export function getCardInfo(cardId: number): CardInfo {
 export function getAttackValue(cardId: number): number {
   if (isJoker(cardId)) return 0;
   const rank = getRank(cardId);
-  return rank === 1 ? 14 : rank;
+  if (rank === 1) return 1;   // Ace = Animal Companion = 1
+  if (rank === 11) return 10; // Jack
+  if (rank === 12) return 15; // Queen
+  if (rank === 13) return 20; // King
+  return rank; // 2–10
 }
 
 export function isValidPlay(cardIds: number[]): boolean {
   if (cardIds.length === 0 || cardIds.length > 4) return false;
   const [first, ...rest] = cardIds;
+
+  // Joker must be played alone
   if (isJoker(first)) return cardIds.length === 1;
   if (rest.some(isJoker)) return false;
-  const rank = getRank(first);
-  return rest.every((id) => getRank(id) === rank);
+
+  const hasAce = getRank(first) === 1 || rest.some((id) => getRank(id) === 1);
+
+  if (hasAce) {
+    // Animal Companion: alone, or paired with exactly one other card (any rank)
+    return cardIds.length <= 2;
+  }
+
+  // Single non-ace card: always valid
+  if (rest.length === 0) return true;
+
+  // Combo: same rank, combined attack value ≤ 10
+  const firstRank = getRank(first);
+  if (!rest.every((id) => getRank(id) === firstRank)) return false;
+  const total = cardIds.reduce((sum, id) => sum + getAttackValue(id), 0);
+  return total <= 10;
 }
 
 export function computeDamage(

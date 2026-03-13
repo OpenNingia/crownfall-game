@@ -56,7 +56,12 @@ export default function GameBoard() {
               <div style={styles.hpText}>
                 {Math.max(0, currentMonster.currentHp)} / {currentMonster.maxHp} HP
               </div>
-              <div style={styles.attack}>⚔ {currentMonster.attack} attack</div>
+              <div style={styles.attack}>
+                ⚔ {Math.max(0, currentMonster.attack - currentMonster.spadeReduction)} attack
+                {currentMonster.spadeReduction > 0 && (
+                  <span style={styles.shieldTag}>🛡 -{currentMonster.spadeReduction}</span>
+                )}
+              </div>
               {currentMonster.immunityNegated && (
                 <div style={styles.immunityTag}>Immunity negated</div>
               )}
@@ -150,7 +155,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hpFill: { height: "100%", borderRadius: 4, transition: "width 0.4s ease" },
   hpText: { color: "#8b949e", fontSize: "0.85rem" },
-  attack: { color: "#f85149", fontSize: "0.85rem", marginTop: "0.25rem" },
+  attack: { color: "#f85149", fontSize: "0.85rem", marginTop: "0.25rem", display: "flex", gap: "0.4rem", alignItems: "center" },
+  shieldTag: { color: "#58a6ff", fontSize: "0.75rem" },
   immunityTag: {
     display: "inline-block",
     marginTop: "0.25rem",

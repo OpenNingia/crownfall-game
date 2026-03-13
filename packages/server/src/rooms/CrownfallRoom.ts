@@ -228,6 +228,7 @@ function syncMonster(schema: MonsterState, eng: EngineMonster) {
   schema.currentHp = eng.currentHp;
   schema.attack = eng.attack;
   schema.immunityNegated = eng.immunityNegated;
+  schema.spadeReduction = eng.spadeReduction;
 }
 
 function syncPlayer(schema: PlayerState, eng: EnginePlayer, currentPlayerSessionId: string) {

@@ -1,6 +1,6 @@
 import React from "react";
 import { useGameStore } from "../../store/gameStore.js";
-import { isValidPlay } from "@crownfall/shared";
+import { isValidPlay, getAttackValue } from "@crownfall/shared";
 
 interface Props {
   send: (type: string, payload?: unknown) => void;
@@ -16,11 +16,12 @@ export default function ActionPanel({ send }: Props) {
   const players = useGameStore((s) => s.players);
 
   const myDiscardRequired = mySessionId ? (discardRequired?.get(mySessionId) ?? 0) : 0;
+  const selectedValue = selectedCardIds.reduce((sum, id) => sum + getAttackValue(id), 0);
   const canPlay = phase === "playing" && isMyTurn && isValidPlay(selectedCardIds);
   const canDiscard =
     phase === "awaiting_discard" &&
     myDiscardRequired > 0 &&
-    selectedCardIds.length === myDiscardRequired;
+    selectedValue >= myDiscardRequired;
 
   const handlePlay = () => {
     console.log(`handlePlay. canPlay: ${canPlay}, selectedCards: ${selectedCardIds}`)

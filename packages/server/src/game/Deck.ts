@@ -1,4 +1,4 @@
-import { CASTLE_CARD_IDS, JOKER_BLACK, JOKER_RED } from "@crownfall/shared";
+import { CASTLE_CARD_IDS, JOKER_BLACK, JOKER_RED, JESTER_COUNT } from "@crownfall/shared";
 // Note: @crownfall/shared resolves to packages/shared/src/index via tsconfig paths
 
 /** Fisher-Yates shuffle (in-place) */
@@ -11,22 +11,23 @@ export function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * Returns the full 54-card deck (no monsters, no face cards) shuffled.
- * Castle deck (monsters) is kept separate and ordered J→Q→K by suit.
+ * Returns the Tavern deck for the given player count (shuffled).
+ * Includes cards 2–10, Aces, and the correct number of Jesters per player count.
  */
-export function buildTavernDeck(): number[] {
+export function buildTavernDeck(playerCount: number): number[] {
   const monsterSet = new Set(CASTLE_CARD_IDS);
   const tavern: number[] = [];
 
-  // Cards 1–52 that are not monsters
+  // Cards 1–52 that are not monsters (includes Aces 1/14/27/40)
   for (let id = 1; id <= 52; id++) {
     if (!monsterSet.has(id)) {
       tavern.push(id);
     }
   }
 
-  // Add 2 jokers
-  tavern.push(JOKER_BLACK, JOKER_RED);
+  const jesters = JESTER_COUNT[playerCount] ?? 0;
+  if (jesters >= 1) tavern.push(JOKER_BLACK);
+  if (jesters >= 2) tavern.push(JOKER_RED);
 
   return shuffle(tavern);
 }

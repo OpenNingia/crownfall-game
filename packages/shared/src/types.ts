@@ -16,6 +16,7 @@ export interface MonsterInfo {
   currentHp: number;
   attack: number;
   immunityNegated: boolean;
+  spadeReduction: number; // cumulative spades played against this monster by all players
 }
 
 export interface PlayerInfo {

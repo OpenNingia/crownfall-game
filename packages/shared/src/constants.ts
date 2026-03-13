@@ -39,7 +39,15 @@ export const HAND_SIZES: Record<number, number> = {
   1: 8,
   2: 7,
   3: 6,
-  4: 6,
+  4: 5,
+};
+
+/** Number of Jesters (Jokers) in the Tavern deck per player count */
+export const JESTER_COUNT: Record<number, number> = {
+  1: 0,
+  2: 0,
+  3: 1,
+  4: 2,
 };
 
 export const MAX_PLAYERS = 4;

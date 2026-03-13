@@ -8,4 +8,5 @@ export class MonsterState extends Schema {
   @type("int16") currentHp: number = 0;
   @type("uint8") attack: number = 0;
   @type("boolean") immunityNegated: boolean = false;
+  @type("uint16") spadeReduction: number = 0;
 }
