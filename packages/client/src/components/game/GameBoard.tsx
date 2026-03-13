@@ -39,7 +39,7 @@ export default function GameBoard() {
       {currentMonster && (
         <div style={styles.monsterOverlay}>
           <div style={styles.monsterCard}>
-            <CardThumbnail cardId={currentMonster.cardId} small />
+            <CardThumbnail cardId={currentMonster.cardId} small layoutId={`monster-overlay-${currentMonster.cardId}`} />
             <div style={styles.monsterInfo}>
               <div style={styles.monsterName}>
                 {currentMonster.suit.toUpperCase()} {rankLabel(currentMonster.rank)}

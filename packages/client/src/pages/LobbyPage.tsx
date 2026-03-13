@@ -24,10 +24,9 @@ export default function LobbyPage() {
     try {
       await joinOrCreate(playerName.trim());
       setJoined(true);
-    //} catch (e: any) {
-    //  setError(e?.message ?? "Connection failed");
-    } 
-    finally {
+    } catch (e: any) {
+      setError(e?.message ?? "Connection failed");
+    } finally {
       setIsJoining(false);
     }
   };

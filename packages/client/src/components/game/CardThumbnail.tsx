@@ -8,6 +8,7 @@ interface Props {
   onClick?: () => void;
   small?: boolean;
   faceDown?: boolean;
+  layoutId?: string; // override the default "card-{cardId}" shared layout id
 }
 
 const SUIT_SYMBOLS: Record<string, string> = {
@@ -38,12 +39,14 @@ function rankLabel(rank: number): string {
   return RANK_LABELS[rank] ?? String(rank);
 }
 
-export default function CardThumbnail({ cardId, selected, onClick, small, faceDown }: Props) {
+export default function CardThumbnail({ cardId, selected, onClick, small, faceDown, layoutId: layoutIdProp }: Props) {
+  const resolvedLayoutId = layoutIdProp ?? `card-${cardId}`;
+
   if (faceDown) {
     return (
       <motion.div
         style={{ ...styles.card, ...(small ? styles.small : {}), ...styles.faceDown }}
-        layoutId={`card-${cardId}`}
+        layoutId={resolvedLayoutId}
         whileHover={onClick ? { y: -4 } : {}}
       />
     );
@@ -57,7 +60,7 @@ export default function CardThumbnail({ cardId, selected, onClick, small, faceDo
   return (
     <motion.div
       layout
-      layoutId={`card-${cardId}`}
+      layoutId={resolvedLayoutId}
       style={{
         ...styles.card,
         ...(small ? styles.small : {}),
