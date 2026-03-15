@@ -58,7 +58,7 @@ function setHand(state: EngineState, sessionId: string, cards: number[]) {
 // Hearts 1-13, Diamonds 14-26, Clubs 27-39, Spades 40-52
 const ACE_H = 1, TWO_H = 2, THREE_H = 3, SEVEN_H = 7, EIGHT_H = 8, TEN_H = 10;
 const ACE_D = 14, TWO_D = 15, THREE_D = 16, FIVE_D = 18, SIX_D = 19;
-const ACE_C = 27, TWO_C = 28, THREE_C = 29, FOUR_C = 30, FIVE_C = 31;
+const ACE_C = 27, TWO_C = 28, THREE_C = 29, FOUR_C = 30, FIVE_C = 31, EIGHT_C = 34;
 const ACE_S = 40, TWO_S = 41, THREE_S = 42, FOUR_S = 43, FIVE_S = 44, EIGHT_S = 47;
 
 // ---------------------------------------------------------------------------
@@ -319,14 +319,14 @@ describe("damage calculation", () => {
     expect(state.currentMonster.currentHp).toBe(90); // 5×2 = 10
   });
 
-  it("combo 3×3: 9 total damage (hearts immune → no double, just 9)", () => {
+  it("combo 3×3: 18 total damage (hearts immune)", () => {
     const state = freshState();
     setHand(state, "p1", [THREE_H, THREE_D, THREE_C]);
     // Hearts monster: hearts immune (heal ignored), diamonds draws, clubs doubles
-    injectMonster(state, { suit: "hearts", hp: 100, attack: 0 });
+    injectMonster(state, { suit: "hearts", hp: 20, attack: 0 });
     playCards(state, "p1", [THREE_H, THREE_D, THREE_C]);
-    // 3 (hearts, no suit power but damage still applied) + 3 (diamonds) + 3×2 (clubs) = 3+3+6 = 12
-    expect(state.currentMonster.currentHp).toBe(88);
+    // 3 (hearts, no suit power but damage still applied) + 3 (diamonds) + 3 (clubs) = 9 x 2 (clubs double) = 18 damage
+    expect(state.currentMonster.currentHp).toBe(2);
   });
 });
 
@@ -822,6 +822,23 @@ describe("Animal Companion (Ace) pairing", () => {
     expect(state.currentMonster.spadeReduction).toBe(8);
     expect(state.discardRequired.get("p1")).toBe(12);
   });
+
+  it("Ace + 8 of clubs: both suit powers apply at combined value 9", () => {
+    const state = freshState();
+    // ACE_H (hearts, val 1) + EIGHT_C (clubs, val 8) → combined attack = 18
+    // hearts heal = 1, clubs damage = 8
+    // give p1 extra cards to cover the remaining attack after shields
+    state.discard = [SIX_D, FOUR_C];
+    setHand(state, "p1", [ACE_H, EIGHT_C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); // plenty to discard
+    injectMonster(state, { suit: "diamonds", hp: 20, attack: 0 });
+    const tavernBefore = state.tavern.length;
+    playCards(state, "p1", [ACE_H, EIGHT_C]);
+    // Hearts: heals 1 from discard
+    expect(state.tavern.length).toBe(tavernBefore + 1);
+    // Clubs: damage 18 
+    state.currentMonster.currentHp
+    expect(state.currentMonster.currentHp).toBe(2);
+  });  
 
   it("Ace + card of same suit: suit power applied once", () => {
     const state = freshState();

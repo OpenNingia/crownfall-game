@@ -71,17 +71,23 @@ export function computeDamage(
   monsterSuit: Suit,
   immunityNegated: boolean
 ): number {
-  return cardIds.reduce((total, id) => {
-    if (isJoker(id)) return total;
+  // find damage multiplier from clubs cards, applied after summing base damage of all cards
+  const multiplier = cardIds.reduce((_, id) => {
     const suit = getSuit(id);
-    const base = getAttackValue(id);
-    let multiplier = 1;
     if (suit === "clubs") {
       const clubsImmune = monsterSuit === "clubs" && !immunityNegated;
-      multiplier = clubsImmune ? 1 : 2;
+      return clubsImmune ? 1 : 2;
     }
-    return total + base * multiplier;
+    return 1;
+  }, 1);
+
+  const cardDamage = cardIds.reduce((total, id) => {
+    if (isJoker(id)) return total;
+    const base = getAttackValue(id);
+    return total + base;
   }, 0);
+
+  return cardDamage * multiplier;
 }
 
 export type SuitEffect = {
