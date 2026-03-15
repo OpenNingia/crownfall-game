@@ -11,6 +11,8 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "useDefineForClassFields": false,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": false,
     "composite": true,
     "outDir": "./dist",
     "rootDir": "./src"
