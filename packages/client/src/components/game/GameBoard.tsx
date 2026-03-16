@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../store/gameStore.js";
 import { GameBoardScene } from "../../pixi/GameBoardScene.js";
+import { subscribeToGameEvents } from "../../events/gameEventBus.js";
 import CardThumbnail from "./CardThumbnail.js";
 
 export default function GameBoard() {
@@ -10,6 +12,33 @@ export default function GameBoard() {
   const currentMonster = useGameStore((s) => s.currentMonster);
   const tavernSize = useGameStore((s) => s.tavernSize);
   const discardSize = useGameStore((s) => s.discardSize);
+
+  // Landing card: the killed monster card that animates onto its destination pile
+  const [landingCard, setLandingCard] = useState<{
+    cardId: number;
+    dest: "tavern" | "discard";
+    perfectKill: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeToGameEvents((event) => {
+      if (event.type === "monsterDefeated") {
+        setLandingCard({
+          cardId: event.monsterId,
+          dest: event.perfectKill ? "tavern" : "discard",
+          perfectKill: event.perfectKill,
+        });
+      }
+    });
+    return unsub;
+  }, []);
+
+  // Auto-clear landing card after animation completes
+  useEffect(() => {
+    if (!landingCard) return;
+    const t = setTimeout(() => setLandingCard(null), 1100);
+    return () => clearTimeout(t);
+  }, [landingCard?.cardId]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -24,8 +53,14 @@ export default function GameBoard() {
       scene.update(state);
     });
 
+    // Subscribe to game events for kill/victory effects
+    const unsubEvents = subscribeToGameEvents((event) => {
+      scene.handleGameEvent(event);
+    });
+
     return () => {
       unsub();
+      unsubEvents();
       scene.destroy();
     };
   }, []);
@@ -86,13 +121,39 @@ export default function GameBoard() {
       {/* Deck counters */}
       <div style={styles.decks}>
         <div style={styles.deckPile}>
+          <AnimatePresence>
+            {landingCard?.dest === "tavern" && (
+              <LandingCard key={`landing-${landingCard.cardId}`} cardId={landingCard.cardId} perfectKill={landingCard.perfectKill} />
+            )}
+          </AnimatePresence>
           <div style={styles.deckFace}>🂠</div>
-          <div style={styles.deckCount}>{tavernSize}</div>
+          <motion.div
+            key={tavernSize}
+            style={styles.deckCount}
+            initial={{ scale: 1.5, color: "#ffd700" }}
+            animate={{ scale: 1, color: "#e6edf3" }}
+            transition={{ duration: 0.35 }}
+          >
+            {tavernSize}
+          </motion.div>
           <div style={styles.deckLabel}>Tavern</div>
         </div>
         <div style={styles.deckPile}>
+          <AnimatePresence>
+            {landingCard?.dest === "discard" && (
+              <LandingCard key={`landing-${landingCard.cardId}`} cardId={landingCard.cardId} perfectKill={false} />
+            )}
+          </AnimatePresence>
           <div style={styles.deckFace}>♻</div>
-          <div style={styles.deckCount}>{discardSize}</div>
+          <motion.div
+            key={discardSize}
+            style={styles.deckCount}
+            initial={{ scale: 1.5, color: "#8b949e" }}
+            animate={{ scale: 1, color: "#e6edf3" }}
+            transition={{ duration: 0.35 }}
+          >
+            {discardSize}
+          </motion.div>
           <div style={styles.deckLabel}>Discard</div>
         </div>
       </div>
@@ -180,8 +241,38 @@ const styles: Record<string, React.CSSProperties> = {
     position: "relative",
     zIndex: 1,
   },
-  deckPile: { textAlign: "center" },
+  deckPile: { textAlign: "center", position: "relative" },
   deckFace: { fontSize: "2rem" },
   deckCount: { color: "#e6edf3", fontWeight: 700 },
   deckLabel: { color: "#8b949e", fontSize: "0.75rem", textTransform: "uppercase" },
 };
+
+// ---------------------------------------------------------------------------
+// LandingCard: animated monster card that drops onto a deck pile after kill
+// ---------------------------------------------------------------------------
+
+function LandingCard({ cardId, perfectKill }: { cardId: number; perfectKill: boolean }) {
+  // Stable tilt direction based on cardId to avoid randomness in render
+  const tilt = cardId % 2 === 0 ? -18 : 18;
+
+  return (
+    <motion.div
+      style={{
+        position: "absolute",
+        bottom: "calc(100% + 6px)",
+        left: "50%",
+        marginLeft: -22, // half of 44px small card width
+        zIndex: 20,
+        ...(perfectKill
+          ? { filter: "drop-shadow(0 0 6px #ffd700) drop-shadow(0 0 14px rgba(255,215,0,0.6))" }
+          : {}),
+      }}
+      initial={{ y: -50, opacity: 0, rotate: tilt, scale: 0.55 }}
+      animate={{ y: 0, opacity: 1, rotate: perfectKill ? 0 : tilt * 0.3, scale: 1 }}
+      exit={{ y: 12, opacity: 0, scale: 0.45, transition: { duration: 0.18 } }}
+      transition={{ type: "spring", stiffness: 360, damping: 22 }}
+    >
+      <CardThumbnail cardId={cardId} small />
+    </motion.div>
+  );
+}

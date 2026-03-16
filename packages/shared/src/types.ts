@@ -64,3 +64,9 @@ export interface DiscardCardsPayload {
 export interface SelectNextPlayerPayload {
   sessionId: string;
 }
+
+/** Events broadcast from server to all clients for visual feedback. */
+export type GameEvent =
+  | { type: "monsterDefeated"; monsterId: number; perfectKill: boolean; suit: string }
+  | { type: "victory" }
+  | { type: "defeat" };

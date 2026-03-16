@@ -4,6 +4,8 @@ import { colyseusClient } from "./client.js";
 import { adaptState } from "./stateAdapter.js";
 import { useGameStore } from "../store/gameStore.js";
 import { useLobbyStore } from "../store/lobbyStore.js";
+import { emitGameEvents } from "../events/gameEventBus.js";
+import type { GameEvent } from "@crownfall/shared";
 
 interface SavedSession {
   roomId: string;
@@ -57,6 +59,10 @@ export function useRoom() {
         const updated = new Map(players);
         updated.set(room.sessionId, { ...me, hand: msg.hand });
         store.setGameState({ players: updated });
+      });
+
+      room.onMessage("gameEvents", (events: GameEvent[]) => {
+        emitGameEvents(events);
       });
 
       room.onMessage("error", (msg: { message: string }) => {

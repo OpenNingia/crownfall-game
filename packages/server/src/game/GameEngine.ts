@@ -145,7 +145,7 @@ export interface PlayResult {
 }
 
 export type PlayEvent =
-  | { type: "monsterDefeated"; monsterId: number }
+  | { type: "monsterDefeated"; monsterId: number; perfectKill: boolean; suit: string }
   | { type: "victory" }
   | { type: "defeat" }
   | { type: "jokerPlayed" }
@@ -266,7 +266,8 @@ function handleMonsterDefeated(
 ): PlayResult {
   const monsterId = state.currentMonster.cardId;
   const exactKill = state.currentMonster.currentHp === 0;
-  events.push({ type: "monsterDefeated", monsterId });
+  const suit = state.currentMonster.suit;
+  events.push({ type: "monsterDefeated", monsterId, perfectKill: exactKill, suit });
 
   // Exact kill: monster goes on top of Tavern; otherwise to discard
   if (exactKill) {

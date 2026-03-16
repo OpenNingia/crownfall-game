@@ -13,7 +13,7 @@ import {
   type EngineMonster,
   type EnginePlayer,
 } from "../game/GameEngine.js";
-import { MIN_PLAYERS, MAX_PLAYERS } from "@crownfall/shared";
+import { MIN_PLAYERS, MAX_PLAYERS, type GameEvent } from "@crownfall/shared";
 
 type RoomOpts = { state: CrownfallState };
 
@@ -102,6 +102,7 @@ export class CrownfallRoom extends Room<RoomOpts> {
 
     this.engine = result.state;
     this.syncStateFromEngine();
+    this.broadcastGameEvents(result.events);
   }
 
   private handleDiscardCards(client: Client, payload: { cardIds: number[] }) {
@@ -176,6 +177,16 @@ export class CrownfallRoom extends Room<RoomOpts> {
     const ep = this.engine.players.get(client.sessionId);
     if (ep) {
       client.send("handUpdate", { hand: ep.hand });
+    }
+  }
+
+  /** Broadcast visual events (kill effects, etc.) to all clients. */
+  private broadcastGameEvents(events: { type: string; [key: string]: unknown }[]) {
+    const clientEvents: GameEvent[] = events.filter(
+      (e) => e.type === "monsterDefeated" || e.type === "victory" || e.type === "defeat"
+    ) as GameEvent[];
+    if (clientEvents.length > 0) {
+      this.broadcast("gameEvents", clientEvents);
     }
   }
 
