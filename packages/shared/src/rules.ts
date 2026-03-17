@@ -72,14 +72,9 @@ export function computeDamage(
   immunityNegated: boolean
 ): number {
   // find damage multiplier from clubs cards, applied after summing base damage of all cards
-  const multiplier = cardIds.reduce((_, id) => {
-    const suit = getSuit(id);
-    if (suit === "clubs") {
-      const clubsImmune = monsterSuit === "clubs" && !immunityNegated;
-      return clubsImmune ? 1 : 2;
-    }
-    return 1;
-  }, 1);
+  const clubsImmune = monsterSuit === "clubs" && !immunityNegated;
+  const hasClubs = cardIds.some((id) => getSuit(id) === "clubs");
+  const multiplier = hasClubs && !clubsImmune ? 2 : 1;
 
   const cardDamage = cardIds.reduce((total, id) => {
     if (isJoker(id)) return total;
@@ -109,17 +104,19 @@ export function computeSuitEffects(
   let jokerNegatesImmunity = false;
   let jokerClearsBoard = false;
 
-  // Animal Companion (Ace + one other card): both suits fire at the combined attack value.
-  // E.g. A♠ + 5♦ → combined = 6 → spadeShield = 6 AND diamondDraw = 6.
   const nonJokers = cardIds.filter((id) => !isJoker(id));
-  const isAnimalCompanion = nonJokers.length === 2 && nonJokers.some((id) => getRank(id) === 1);
 
-  if (isAnimalCompanion) {
+  // For any multi-card play (Animal Companion or same-rank combo), every suit
+  // power fires at the COMBINED attack value of the whole play.
+  // E.g. 4♣ 4♠ → combined = 8 → spadeShield = 8 (not just 4).
+  // E.g. A♠ 5♦ → combined = 6 → spadeShield = 6 AND diamondDraw = 6.
+  // Same-suit cards within the play apply the combined value only once.
+  if (nonJokers.length > 1) {
     const combined = nonJokers.reduce((sum, id) => sum + getAttackValue(id), 0);
     const seen = new Set<Suit>();
     for (const id of nonJokers) {
       const suit = getSuit(id) as Suit;
-      if (seen.has(suit)) continue; // same-suit pair: apply combined value once
+      if (seen.has(suit)) continue; // same-suit cards: apply combined value once
       seen.add(suit);
       const isImmune = suit === monsterSuit && !immunityNegated;
       switch (suit) {
@@ -132,6 +129,7 @@ export function computeSuitEffects(
     return { heartHeal, diamondDraw, spadeShield, jokerNegatesImmunity, jokerClearsBoard };
   }
 
+  // Single non-joker card: use its own value
   for (const id of cardIds) {
     if (isJoker(id)) {
       jokerNegatesImmunity = true;

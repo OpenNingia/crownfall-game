@@ -806,6 +806,65 @@ describe("turn rotation", () => {
 // Animal Companion pairing
 // ---------------------------------------------------------------------------
 
+describe("combo cross-suit power (combined value)", () => {
+  it("4♣ 4♠ vs non-clubs monster: spadeShield = combined value 8, not 4", () => {
+    const state = freshState();
+    setHand(state, "p1", [FOUR_C, FOUR_S, 1, 2, 3, 4, 5, 6, 7]);
+    injectMonster(state, { suit: "hearts", hp: 100, attack: 20 });
+    playCards(state, "p1", [FOUR_C, FOUR_S]);
+    expect(state.currentMonster.spadeReduction).toBe(8); // combined 4+4, not just 4
+    expect(state.discardRequired.get("p1")).toBe(12); // 20 - 8
+  });
+
+  it("2♥ 2♠: both heart and spade powers use combined value 4", () => {
+    const state = freshState();
+    state.discard = [ACE_C, TWO_C, THREE_C, FOUR_C];
+    setHand(state, "p1", [TWO_H, TWO_S, 1, 2, 3, 4, 5, 6, 7]);
+    injectMonster(state, { suit: "clubs", hp: 100, attack: 20 });
+    const tavernBefore = state.tavern.length;
+    playCards(state, "p1", [TWO_H, TWO_S]);
+    expect(state.tavern.length).toBe(tavernBefore + 4); // heartHeal = combined 4
+    expect(state.currentMonster.spadeReduction).toBe(4); // spadeShield = combined 4
+    expect(state.discardRequired.get("p1")).toBe(16); // 20 - 4
+  });
+
+  it("3♦ 3♦ same-suit combo: diamondDraw = combined 6 (applied once)", () => {
+    const THREE_D2 = 16; // 3 of diamonds = card 16
+    const state = freshState(2);
+    setHand(state, "p1", [THREE_D, THREE_D2]);
+    setHand(state, "p2", []);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+    playCards(state, "p1", [THREE_D, THREE_D2]);
+    // draw = combined 6, round-robin between p1 and p2
+    const totalDrawn = state.players.get("p1")!.hand.length + state.players.get("p2")!.hand.length;
+    expect(totalDrawn).toBe(6);
+  });
+
+  it("2♦ 2♣ 2♥ 2♠ (all four suits, combined=8): each suit power fires at 8", () => {
+    // heartHeal=8 (+8 discard→tavern), diamondDraw=8 (round-robin draw),
+    // spadeShield=0 (monster is spades, immune), clubs doubles → damage 8×2=16.
+    // p1 has 7 cards after playing 4 (at max), p2 has 0 → p2 draws min(8,7)=7.
+    // Net tavern change: +8 (heal) - 7 (draw) = +1.
+    const state = freshState(2);
+    state.discard = [ACE_C, TWO_C, THREE_C, FOUR_C, FIVE_C, SIX_D, ACE_D, TWO_D]; // 8 for heal
+    setHand(state, "p1", [TWO_H, TWO_D, TWO_C, TWO_S, 3, 4, 5, 6, 7, 8, 9]); // 11 → 7 after play = at max
+    setHand(state, "p2", []);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 20 });
+    const tavernBefore = state.tavern.length;
+    playCards(state, "p1", [TWO_H, TWO_D, TWO_C, TWO_S]);
+    expect(state.tavern.length).toBe(tavernBefore + 1);      // +8 heal, -7 draw (p2 maxes at 7)
+    expect(state.players.get("p2")!.hand.length).toBe(7);    // diamondDraw = 8, p2 draws 7 (cap)
+    expect(state.currentMonster.currentHp).toBe(84);         // clubs doubles: 8×2 = 16 damage
+    expect(state.currentMonster.spadeReduction).toBe(0);     // spades immune: no shield
+  });
+
+  it("A♦ + 2♣ + 2♥ + 2♠ (mixed ranks with ace) → invalid play", () => {
+    // Animal Companion allows Ace + ONE card of any rank.
+    // Combining an Ace with a same-rank combo of a different rank is not valid.
+    expect(isValidPlay([ACE_D, TWO_C, TWO_H, TWO_S])).toBe(false);
+  });
+});
+
 describe("Animal Companion (Ace) pairing", () => {
   it("Ace + 8 of spades: both suit powers apply at combined value 9", () => {
     const state = freshState();
@@ -850,6 +909,18 @@ describe("Animal Companion (Ace) pairing", () => {
     // Heal = attack value of play = 1+3 = 4 (hearts power once at combined value)
     expect(state.tavern.length).toBe(tavernBefore + 4);
   });
+
+  it("Ace of clubs + card of same suit: suit power applied once", () => {
+    const state = freshState();
+    // ACE_C + 3_C: both clubs, multiplier damage should be x2, not x4
+    // combined attack value = 1 + 3 = 4, so damage = 4 x 2 = 8
+    state.discard = [TWO_C, THREE_H, FOUR_C, FIVE_C, SIX_D];
+    setHand(state, "p1", [ACE_C, THREE_C]);
+    injectMonster(state, { suit: "spades", hp: 20, attack: 0 });
+
+    playCards(state, "p1", [ACE_C, THREE_C]);
+    expect(state.currentMonster.currentHp).toBe(12);
+  });  
 });
 
 // ---------------------------------------------------------------------------
