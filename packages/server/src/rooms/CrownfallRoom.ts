@@ -324,7 +324,10 @@ export class CrownfallRoom extends Room<RoomOpts> {
     const discardInfo = state.discardRequired.size > 0
       ? ` | discard: ${[...state.discardRequired.entries()].map(([sid, v]) => `${this.playerName(sid)}=${v}`).join(", ")}`
       : "";
-    return `phase=${state.phase} | turn#${state.turnNumber} | monster=${monsterDesc} | next="${currentName}"${discardInfo}`;
+    const handsTotal = [...state.players.values()].reduce((s, p) => s + p.hand.length, 0);
+    const total = state.tavern.length + state.discard.length + state.boardCards.length + handsTotal + state.castleDeck.length + 1;
+    const decks = `tavern=${state.tavern.length} discard=${state.discard.length} board=${state.boardCards.length} hands=${handsTotal} castle=${state.castleDeck.length} [total=${total}/54]`;
+    return `phase=${state.phase} | turn#${state.turnNumber} | monster=${monsterDesc} | next="${currentName}" | ${decks}${discardInfo}`;
   }
 
   private formatEvents(events: PlayEvent[]): string {
@@ -335,7 +338,16 @@ export class CrownfallRoom extends Room<RoomOpts> {
         case "victory":         parts.push("VICTORY"); break;
         case "defeat":          parts.push("DEFEAT"); break;
         case "jokerPlayed":     parts.push("joker played"); break;
-        case "draw":            parts.push(`draw ×${e.count}`); break;
+        case "draw": {
+          const entries = [...e.cardsByPlayer.entries()]
+            .map(([sid, cards]) => {
+              const name = this.engine?.players.get(sid)?.name ?? sid;
+              return `${name} [${descCards(cards)}]`;
+            })
+            .join(", ");
+          parts.push(`draw: ${entries}`);
+          break;
+        }
         case "heal":            parts.push(`heal ×${e.count}`); break;
         case "shields":         parts.push(`shields +${e.amount}`); break;
         case "discardPhase":    parts.push(`discard phase`); break;

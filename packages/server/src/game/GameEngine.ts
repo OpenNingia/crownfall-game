@@ -153,7 +153,7 @@ export type PlayEvent =
   | { type: "victory" }
   | { type: "defeat" }
   | { type: "jokerPlayed" }
-  | { type: "draw"; count: number }
+  | { type: "draw"; count: number; cardsByPlayer: Map<string, number[]> }
   | { type: "heal"; count: number }
   | { type: "shields"; amount: number }
   | { type: "discardPhase"; required: Map<string, number> }
@@ -221,8 +221,8 @@ export function playCards(state: EngineState, sessionId: string, cardIds: number
 
   // Apply Diamonds: draw cards round-robin starting from current player
   if (effects.diamondDraw > 0) {
-    const drawn = drawCardsRoundRobin(state, sessionId, effects.diamondDraw);
-    if (drawn > 0) events.push({ type: "draw", count: drawn });
+    const { count: drawn, cardsByPlayer } = drawCardsRoundRobin(state, sessionId, effects.diamondDraw);
+    if (drawn > 0) events.push({ type: "draw", count: drawn, cardsByPlayer });
   }
 
   // Apply Spades: reduce monster's effective attack (cumulative, persists until defeated)
@@ -470,15 +470,20 @@ function advanceTurn(state: EngineState): void {
  * Distribute `total` card draws round-robin starting from `startSessionId`,
  * skipping players at max hand size. Returns total cards actually drawn.
  */
-function drawCardsRoundRobin(state: EngineState, startSessionId: string, total: number): number {
+function drawCardsRoundRobin(
+  state: EngineState,
+  startSessionId: string,
+  total: number
+): { count: number; cardsByPlayer: Map<string, number[]> } {
   const startIdx = state.playerOrder.indexOf(startSessionId);
   const order = [
     ...state.playerOrder.slice(startIdx),
     ...state.playerOrder.slice(0, startIdx),
   ];
 
-  let drawn = 0;
+  let count = 0;
   let remaining = total;
+  const cardsByPlayer = new Map<string, number[]>();
 
   while (remaining > 0 && state.tavern.length > 0) {
     let drewThisRound = false;
@@ -486,15 +491,18 @@ function drawCardsRoundRobin(state: EngineState, startSessionId: string, total: 
       if (remaining <= 0 || state.tavern.length === 0) break;
       const p = state.players.get(sid)!;
       if (p.hand.length >= state.maxHandSize) continue;
-      p.hand.push(state.tavern.shift()!);
-      drawn++;
+      const card = state.tavern.shift()!;
+      p.hand.push(card);
+      if (!cardsByPlayer.has(sid)) cardsByPlayer.set(sid, []);
+      cardsByPlayer.get(sid)!.push(card);
+      count++;
       remaining--;
       drewThisRound = true;
     }
     if (!drewThisRound) break; // all players at max hand size
   }
 
-  return drawn;
+  return { count, cardsByPlayer };
 }
 
 function recycleFromDiscard(state: EngineState, count: number): number {
