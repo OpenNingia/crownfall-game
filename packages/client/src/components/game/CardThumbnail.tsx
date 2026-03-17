@@ -7,6 +7,7 @@ interface Props {
   selected?: boolean;
   onClick?: () => void;
   small?: boolean;
+  large?: boolean;
   faceDown?: boolean;
   layoutId?: string; // override the default "card-{cardId}" shared layout id
 }
@@ -39,13 +40,14 @@ function rankLabel(rank: number): string {
   return RANK_LABELS[rank] ?? String(rank);
 }
 
-export default function CardThumbnail({ cardId, selected, onClick, small, faceDown, layoutId: layoutIdProp }: Props) {
+export default function CardThumbnail({ cardId, selected, onClick, small, large, faceDown, layoutId: layoutIdProp }: Props) {
   const resolvedLayoutId = layoutIdProp ?? `card-${cardId}`;
+  const sizeStyle = small ? styles.small : large ? styles.large : {};
 
   if (faceDown) {
     return (
       <motion.div
-        style={{ ...styles.card, ...(small ? styles.small : {}), ...styles.faceDown }}
+        style={{ ...styles.card, ...sizeStyle, ...styles.faceDown }}
         layoutId={resolvedLayoutId}
         whileHover={onClick ? { y: -4 } : {}}
       />
@@ -63,7 +65,7 @@ export default function CardThumbnail({ cardId, selected, onClick, small, faceDo
       layoutId={resolvedLayoutId}
       style={{
         ...styles.card,
-        ...(small ? styles.small : {}),
+        ...sizeStyle,
         ...(selected ? styles.selected : {}),
         ...(onClick ? styles.clickable : {}),
       }}
@@ -71,9 +73,9 @@ export default function CardThumbnail({ cardId, selected, onClick, small, faceDo
       whileTap={onClick ? { scale: 0.97 } : {}}
       onClick={onClick}
     >
-      <span style={{ ...styles.corner, color: suitColor }}>{label}</span>
-      <span style={{ ...styles.suit, color: suitColor }}>{suitSymbol}</span>
-      <span style={{ ...styles.cornerBottom, color: suitColor }}>{label}</span>
+      <span style={{ ...styles.corner, ...(large ? styles.cornerLarge : {}), color: suitColor }}>{label}</span>
+      <span style={{ ...styles.suit, ...(large ? styles.suitLarge : {}), color: suitColor }}>{suitSymbol}</span>
+      <span style={{ ...styles.cornerBottom, ...(large ? styles.cornerLarge : {}), color: suitColor }}>{label}</span>
     </motion.div>
   );
 }
@@ -95,10 +97,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   small: {
     width: 44,
-    height: 64,
+    height: 72,
     borderRadius: 6,
-    padding: "3px 4px",
-    fontSize: "0.8rem",
+    padding: "2px 4px",
+    fontSize: "0.6rem",
+  },
+  large: {
+    width: 80,
+    height: 120,
+    borderRadius: 10,
+    padding: "6px 8px",
   },
   selected: {
     border: "2px solid #f0c040",
@@ -111,6 +119,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "default",
   },
   corner: { fontSize: "0.85rem", fontWeight: 700 },
+  cornerLarge: { fontSize: "1.1rem" },
   suit: { fontSize: "1.4rem", textAlign: "center" },
+  suitLarge: { fontSize: "2rem" },
   cornerBottom: { fontSize: "0.85rem", fontWeight: 700, alignSelf: "flex-end", transform: "rotate(180deg)" },
 };

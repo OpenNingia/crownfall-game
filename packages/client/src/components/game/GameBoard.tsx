@@ -74,7 +74,7 @@ export default function GameBoard() {
       {currentMonster && (
         <div style={styles.monsterOverlay}>
           <div style={styles.monsterCard}>
-            <CardThumbnail cardId={currentMonster.cardId} small layoutId={`monster-overlay-${currentMonster.cardId}`} />
+            <CardThumbnail cardId={currentMonster.cardId} large layoutId={`monster-overlay-${currentMonster.cardId}`} />
             <div style={styles.monsterInfo}>
               <div style={styles.monsterName}>
                 {currentMonster.suit.toUpperCase()} {rankLabel(currentMonster.rank)}
@@ -203,7 +203,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #30363d",
     borderRadius: 8,
     padding: "0.75rem",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   monsterInfo: { flex: 1 },
   monsterName: { color: "#e6edf3", fontWeight: 700, fontSize: "1.1rem", marginBottom: "0.5rem" },
