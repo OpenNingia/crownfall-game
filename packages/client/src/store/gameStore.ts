@@ -34,6 +34,8 @@ export const useGameStore = create<GameStoreState>()(
     discardRequired: new Map(),
     monstersRemaining: 12,
     turnNumber: 0,
+    soloJestersAvailable: 0,
+    soloJestersUsed: 0,
 
     setGameState: (partial) =>
       set((state) => ({ ...state, ...partial })),

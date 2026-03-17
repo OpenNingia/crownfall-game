@@ -50,7 +50,7 @@ export default function LobbyPage() {
     >
       <div style={styles.card}>
         <h1 style={styles.title}>⚔ Crownfall</h1>
-        <p style={styles.subtitle}>A cooperative card siege — 2 to 4 players</p>
+        <p style={styles.subtitle}>A cooperative card siege — 1 to 4 players</p>
 
         {!joined ? (
           <div style={styles.joinForm}>
@@ -90,7 +90,7 @@ export default function LobbyPage() {
             >
               {myPlayer?.ready ? "Not Ready" : "Ready!"}
             </button>
-            <p style={styles.hint}>Need at least 2 players. All must be ready to start.</p>
+            <p style={styles.hint}>Press Ready to start. One player is enough for a solo run!</p>
           </div>
         )}
       </div>

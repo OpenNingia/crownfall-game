@@ -27,4 +27,8 @@ export class CrownfallState extends Schema {
   @type("uint8") monstersRemaining: number = 12;
 
   @type("uint32") turnNumber: number = 0;
+
+  @type("uint8") soloJestersAvailable: number = 0;
+
+  @type("uint8") soloJestersUsed: number = 0;
 }

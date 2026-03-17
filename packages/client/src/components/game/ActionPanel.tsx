@@ -14,6 +14,7 @@ export default function ActionPanel({ send }: Props) {
   const mySessionId = useGameStore((s) => s.mySessionId);
   const discardRequired = useGameStore((s) => s.discardRequired);
   const players = useGameStore((s) => s.players);
+  const soloJestersAvailable = useGameStore((s) => s.soloJestersAvailable ?? 0);
 
   const myDiscardRequired = mySessionId ? (discardRequired?.get(mySessionId) ?? 0) : 0;
   const selectedValue = selectedCardIds.reduce((sum, id) => sum + getAttackValue(id), 0);
@@ -95,6 +96,15 @@ export default function ActionPanel({ send }: Props) {
           </button>
         )}
 
+        {soloJestersAvailable > 0 && (
+          (phase === "playing" && isMyTurn) ||
+          (phase === "awaiting_discard" && myDiscardRequired > 0)
+        ) && (
+          <button style={{ ...styles.btn, ...styles.btnJester }} onClick={() => send("useJesterPower")}>
+            Jester Power ({soloJestersAvailable} left)
+          </button>
+        )}
+
         {selectedCardIds.length > 0 && (
           <button style={{ ...styles.btn, ...styles.btnClear }} onClick={clearSelection}>
             Clear
@@ -130,6 +140,7 @@ const styles: Record<string, React.CSSProperties> = {
   btnYield: { background: "#30363d", color: "#e6edf3" },
   btnClear: { background: "#21262d", color: "#8b949e" },
   btnDisabled: { background: "#21262d", color: "#30363d", cursor: "not-allowed" },
+  btnJester: { background: "#7c3aed", color: "#fff" },
   waiting: { color: "#8b949e", fontSize: "0.9rem" },
   label: { color: "#e6edf3", fontWeight: 600 },
   playerButtons: { display: "flex", gap: "0.5rem" },

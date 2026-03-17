@@ -66,6 +66,8 @@ export interface EngineState {
   turnNumber: number;
   maxHandSize: number;
   yieldedLastTurn: Set<string>; // players whose last step-1 action was a yield
+  soloJestersAvailable: number; // 2 if 1 player, else 0
+  soloJestersUsed: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +117,8 @@ export function initGame(players: { sessionId: string; name: string }[]): Engine
     turnNumber: 1,
     maxHandSize,
     yieldedLastTurn: new Set(),
+    soloJestersAvailable: playerCount === 1 ? 2 : 0,
+    soloJestersUsed: 0,
   };
 }
 
@@ -499,6 +503,55 @@ function recycleFromDiscard(state: EngineState, count: number): number {
   const shuffled = shuffle(recycled);
   state.tavern.unshift(...shuffled);
   return recycled.length;
+}
+
+// ---------------------------------------------------------------------------
+// useJesterPower — solo mode only
+// ---------------------------------------------------------------------------
+
+export interface UseJesterPowerResult {
+  state: EngineState;
+  error?: string;
+}
+
+export function useJesterPower(state: EngineState, sessionId: string): UseJesterPowerResult {
+  if (state.soloJestersAvailable <= 0) {
+    return { state, error: "No Jester power available" };
+  }
+  if (state.phase !== "playing" && state.phase !== "awaiting_discard") {
+    return { state, error: "Cannot use Jester power in this phase" };
+  }
+  if (state.currentPlayerSessionId !== sessionId) {
+    return { state, error: "Not your turn" };
+  }
+
+  const player = state.players.get(sessionId)!;
+
+  // Discard entire hand
+  state.discard.push(...player.hand);
+  player.hand = [];
+
+  // Draw up to maxHandSize cards from tavern (no round-robin in solo)
+  while (player.hand.length < state.maxHandSize && state.tavern.length > 0) {
+    player.hand.push(state.tavern.shift()!);
+  }
+
+  state.soloJestersAvailable--;
+  state.soloJestersUsed++;
+
+  if (state.phase === "awaiting_discard") {
+    const requiredValue = state.discardRequired.get(sessionId);
+    if (requiredValue !== undefined && requiredValue > 0) {
+      const maxCoverable = player.hand.reduce((sum, id) => sum + getAttackValue(id), 0);
+      if (maxCoverable < requiredValue) {
+        state.phase = "defeat";
+        return { state };
+      }
+    }
+    // Stay in awaiting_discard with new hand
+  }
+
+  return { state };
 }
 
 // ---------------------------------------------------------------------------

@@ -62,5 +62,7 @@ export function adaptState(
     discardRequired,
     monstersRemaining: state.monstersRemaining,
     turnNumber: state.turnNumber,
+    soloJestersAvailable: state.soloJestersAvailable ?? 0,
+    soloJestersUsed: state.soloJestersUsed ?? 0,
   };
 }

@@ -9,6 +9,7 @@ import {
   selectNextPlayer,
   yieldTurn,
   removePlayer,
+  useJesterPower,
   type EngineState,
   type EngineMonster,
   type EnginePlayer,
@@ -31,6 +32,7 @@ export class CrownfallRoom extends Room<RoomOpts> {
       this.handleSelectNextPlayer(client, payload)
     );
     this.onMessage("yield", (client) => this.handleYield(client));
+    this.onMessage("useJesterPower", (client) => this.handleUseJesterPower(client));
   }
 
   onJoin(client: Client, options: Record<string, unknown>) {
@@ -130,6 +132,17 @@ export class CrownfallRoom extends Room<RoomOpts> {
     this.syncStateFromEngine();
   }
 
+  private handleUseJesterPower(client: Client) {
+    if (!this.engine) return;
+    const result = useJesterPower(this.engine, client.sessionId);
+    if (result.error) {
+      client.send("error", { message: result.error });
+      return;
+    }
+    this.engine = result.state;
+    this.syncStateFromEngine();
+  }
+
   private handleSelectNextPlayer(client: Client, payload: { sessionId: string }) {
     if (!this.engine) return;
     if (!payload?.sessionId) return;
@@ -212,6 +225,8 @@ export class CrownfallRoom extends Room<RoomOpts> {
     this.state.currentPlayerSessionId = eng.currentPlayerSessionId;
     this.state.monstersRemaining = eng.monstersRemaining;
     this.state.turnNumber = eng.turnNumber;
+    this.state.soloJestersAvailable = eng.soloJestersAvailable;
+    this.state.soloJestersUsed = eng.soloJestersUsed;
 
     syncMonster(this.state.currentMonster, eng.currentMonster);
 

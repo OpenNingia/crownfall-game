@@ -4,7 +4,10 @@ import { useGameStore } from "../store/gameStore.js";
 
 export default function GameOverPage() {
   const phase = useGameStore((s) => s.phase);
+  const players = useGameStore((s) => s.players);
+  const soloJestersUsed = useGameStore((s) => s.soloJestersUsed ?? 0);
   const isVictory = phase === "victory";
+  const isSolo = players ? players.size === 1 : false;
 
   return (
     <motion.div
@@ -27,6 +30,11 @@ export default function GameOverPage() {
             ? "The castle has fallen. The realm is saved!"
             : "Your party has been overwhelmed. Better luck next time."}
         </p>
+        {isSolo && isVictory && (
+          <p style={styles.victoryLevel}>
+            Victory Level: {soloJestersUsed === 0 ? "🥇 Gold" : soloJestersUsed === 1 ? "🥈 Silver" : "🥉 Bronze"}
+          </p>
+        )}
         <button
           style={styles.button}
           onClick={() => window.location.reload()}
@@ -56,7 +64,8 @@ const styles: Record<string, React.CSSProperties> = {
     width: "90%",
   },
   title: { fontSize: "2.5rem", fontWeight: 700, marginBottom: "1rem" },
-  message: { color: "#8b949e", marginBottom: "2rem", lineHeight: 1.6 },
+  message: { color: "#8b949e", marginBottom: "1rem", lineHeight: 1.6 },
+  victoryLevel: { color: "#f0c040", fontSize: "1.25rem", fontWeight: 600, marginBottom: "1.5rem" },
   button: {
     padding: "0.75rem 2rem",
     borderRadius: 8,

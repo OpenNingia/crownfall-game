@@ -51,6 +51,8 @@ export interface GameState {
   discardRequired: Map<string, number>;
   monstersRemaining: number;
   turnNumber: number;
+  soloJestersAvailable: number; // 0 in multiplayer, 2 in solo
+  soloJestersUsed: number;
 }
 
 export interface PlayCardsPayload {

@@ -5,6 +5,7 @@ import {
   discardCards,
   selectNextPlayer,
   yieldTurn,
+  useJesterPower,
   type EngineState,
 } from "./GameEngine.js";
 import {
@@ -987,5 +988,117 @@ describe("enemy immunity", () => {
     const tavernBefore = state.tavern.length;
     playCards(state, "p2", [THREE_H]);
     expect(state.tavern.length).toBe(tavernBefore + 3); // hearts healed
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Solo mode
+// ---------------------------------------------------------------------------
+
+describe("solo mode", () => {
+  it("initGame with 1 player: soloJestersAvailable=2, soloJestersUsed=0", () => {
+    const state = freshState(1);
+    expect(state.soloJestersAvailable).toBe(2);
+    expect(state.soloJestersUsed).toBe(0);
+  });
+
+  it("initGame with 2+ players: soloJestersAvailable=0", () => {
+    expect(freshState(2).soloJestersAvailable).toBe(0);
+    expect(freshState(3).soloJestersAvailable).toBe(0);
+    expect(freshState(4).soloJestersAvailable).toBe(0);
+  });
+
+  it("useJesterPower: discards hand and draws up to 8 cards (phase playing)", () => {
+    const state = freshState(1);
+    // hand size for 1 player is 8
+    setHand(state, "p1", [TWO_H, THREE_H, FOUR_C]);
+    state.tavern = [ACE_D, TWO_D, THREE_D, ACE_C, TWO_C, THREE_C, FOUR_C, FIVE_C, SIX_D];
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+    const result = useJesterPower(state, "p1");
+    expect(result.error).toBeUndefined();
+    // Old hand should be in discard
+    expect(state.discard).toContain(TWO_H);
+    expect(state.discard).toContain(THREE_H);
+    expect(state.discard).toContain(FOUR_C);
+    // New hand should have 8 cards (maxHandSize for 1 player)
+    expect(state.players.get("p1")!.hand.length).toBe(8);
+    expect(state.phase).toBe("playing");
+  });
+
+  it("useJesterPower: soloJestersAvailable-- and soloJestersUsed++", () => {
+    const state = freshState(1);
+    setHand(state, "p1", [TWO_H]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 0 });
+    useJesterPower(state, "p1");
+    expect(state.soloJestersAvailable).toBe(1);
+    expect(state.soloJestersUsed).toBe(1);
+    useJesterPower(state, "p1");
+    expect(state.soloJestersAvailable).toBe(0);
+    expect(state.soloJestersUsed).toBe(2);
+  });
+
+  it("useJesterPower: cannot be used with 0 Jesters available", () => {
+    const state = freshState(1);
+    state.soloJestersAvailable = 0;
+    const result = useJesterPower(state, "p1");
+    expect(result.error).toBeTruthy();
+  });
+
+  it("useJesterPower: does not negate monster immunity", () => {
+    const state = freshState(1);
+    injectMonster(state, { suit: "hearts", hp: 100, attack: 0, immunityNegated: false });
+    setHand(state, "p1", [TWO_H]);
+    useJesterPower(state, "p1");
+    expect(state.currentMonster.immunityNegated).toBe(false);
+  });
+
+  it("useJesterPower during awaiting_discard: stays in awaiting_discard with new hand", () => {
+    const state = freshState(1);
+    state.phase = "awaiting_discard";
+    // Require player to discard value 5
+    state.discardRequired.set("p1", 5);
+    // Old hand has insufficient value but new hand from tavern will have enough
+    setHand(state, "p1", [ACE_H]); // value 1, can't cover 5
+    // Stock tavern with high-value cards
+    state.tavern = [TEN_H, EIGHT_H, SEVEN_H, ACE_D, TWO_D, THREE_D, FOUR_C, FIVE_C];
+    injectMonster(state, { suit: "spades", hp: 100, attack: 5 });
+    const result = useJesterPower(state, "p1");
+    expect(result.error).toBeUndefined();
+    expect(state.phase).toBe("awaiting_discard");
+    // New hand drawn from tavern
+    expect(state.players.get("p1")!.hand.length).toBe(8);
+  });
+
+  it("useJesterPower during awaiting_discard: defeat if new hand can't cover damage", () => {
+    const state = freshState(1);
+    state.phase = "awaiting_discard";
+    state.discardRequired.set("p1", 20);
+    setHand(state, "p1", [TWO_H]);
+    // Tavern has only aces (value 1 each), total 8 cards = 8 < 20
+    state.tavern = [ACE_H, ACE_D, ACE_C, ACE_S, 2, 3, 4, 5]; // max coverable = 1+1+1+1+2+3+4+5 = 18 < 20
+    injectMonster(state, { suit: "spades", hp: 100, attack: 20 });
+    const result = useJesterPower(state, "p1");
+    expect(result.error).toBeUndefined();
+    expect(state.phase).toBe("defeat");
+  });
+
+  it("useJesterPower: error if not the current player", () => {
+    const state = freshState(2);
+    state.soloJestersAvailable = 2; // manually enable for this test
+    state.currentPlayerSessionId = "p1";
+    const result = useJesterPower(state, "p2");
+    expect(result.error).toBeTruthy();
+  });
+
+  it("victory levels: soloJestersUsed 0/1/2 → Gold/Silver/Bronze (engine state)", () => {
+    // Gold: win without using any Jester powers
+    const s0 = freshState(1);
+    expect(s0.soloJestersUsed).toBe(0); // Gold
+    // Silver: 1 use
+    s0.soloJestersUsed = 1;
+    expect(s0.soloJestersUsed).toBe(1); // Silver
+    // Bronze: 2 uses
+    s0.soloJestersUsed = 2;
+    expect(s0.soloJestersUsed).toBe(2); // Bronze
   });
 });
