@@ -13,15 +13,19 @@ import {
   type EngineState,
   type EngineMonster,
   type EnginePlayer,
+  type PlayEvent,
 } from "../game/GameEngine.js";
 import { MIN_PLAYERS, MAX_PLAYERS, type GameEvent } from "@crownfall/shared";
+import { GameLogger, descCard, descCards } from "../logger.js";
 
 type RoomOpts = { state: CrownfallState };
 
 export class CrownfallRoom extends Room<RoomOpts> {
   private engine: EngineState | null = null;
+  private log!: GameLogger;
 
   onCreate(_options: Record<string, unknown>) {
+    this.log = new GameLogger(this.roomId);
     this.setState(new CrownfallState());
     this.maxClients = MAX_PLAYERS;
 
@@ -43,11 +47,14 @@ export class CrownfallRoom extends Room<RoomOpts> {
     player.name = name;
     player.connected = true;
     this.state.players.set(client.sessionId, player);
+
+    this.log.info(`Player joined — "${name}" (${client.sessionId})`);
   }
 
   async onLeave(client: Client, code?: number) {
     const CONSENTED_CODE = 4000;
     const consented = code === CONSENTED_CODE;
+    const name = this.playerName(client.sessionId);
 
     const player = this.state.players.get(client.sessionId);
     if (player) player.connected = false;
@@ -56,23 +63,32 @@ export class CrownfallRoom extends Room<RoomOpts> {
       if (ep) ep.connected = false;
     }
 
-    if (!consented) {
-      try {
-        await this.allowReconnection(client, 30);
-        if (player) player.connected = true;
-        if (this.engine) {
-          const ep = this.engine.players.get(client.sessionId);
-          if (ep) ep.connected = true;
-          this.sendHandUpdate(client);
-        }
-      } catch {
-        this.state.players.delete(client.sessionId);
-        if (this.engine) removePlayer(this.engine, client.sessionId);
+    if (consented) {
+      this.log.info(`Player left — "${name}" (${client.sessionId}) [consented]`);
+      return;
+    }
+
+    this.log.warn(`Player disconnected — "${name}" (${client.sessionId}) — awaiting reconnection (30s)`);
+
+    try {
+      await this.allowReconnection(client, 30);
+      if (player) player.connected = true;
+      if (this.engine) {
+        const ep = this.engine.players.get(client.sessionId);
+        if (ep) ep.connected = true;
+        this.sendHandUpdate(client);
       }
+      this.log.info(`Player reconnected — "${name}" (${client.sessionId})`);
+    } catch {
+      this.state.players.delete(client.sessionId);
+      if (this.engine) removePlayer(this.engine, client.sessionId);
+      this.log.warn(`Player removed after timeout — "${name}" (${client.sessionId})`);
     }
   }
 
-  onDispose() {}
+  onDispose() {
+    this.log.close();
+  }
 
   // -------------------------------------------------------------------------
   // Message handlers
@@ -83,6 +99,7 @@ export class CrownfallRoom extends Room<RoomOpts> {
     if (!player || this.state.phase !== "lobby") return;
 
     player.ready = !player.ready;
+    this.log.info(`Ready toggle — "${player.name}" (${client.sessionId}) → ${player.ready ? "READY" : "NOT READY"}`);
 
     const connectedPlayers = [...this.state.players.values()].filter((p) => p.connected);
     const allReady = connectedPlayers.every((p) => p.ready);
@@ -96,12 +113,17 @@ export class CrownfallRoom extends Room<RoomOpts> {
     if (!this.engine) return;
     if (!Array.isArray(payload?.cardIds)) return;
 
+    const name = this.playerName(client.sessionId);
+    const cardDesc = descCards(payload.cardIds);
+
     const result = playCards(this.engine, client.sessionId, payload.cardIds);
     if (result.error) {
+      this.log.warn(`playCards rejected — "${name}": ${result.error} (cards: ${cardDesc})`);
       client.send("error", { message: result.error });
       return;
     }
 
+    this.log.info(`[${name}] played ${cardDesc} — ${this.formatEvents(result.events)} → ${this.formatEngineSnapshot(result.state)}`);
     this.engine = result.state;
     this.syncStateFromEngine();
     this.broadcastGameEvents(result.events);
@@ -111,34 +133,50 @@ export class CrownfallRoom extends Room<RoomOpts> {
     if (!this.engine) return;
     if (!Array.isArray(payload?.cardIds)) return;
 
+    const name = this.playerName(client.sessionId);
+    const cardDesc = descCards(payload.cardIds);
+
     const result = discardCards(this.engine, client.sessionId, payload.cardIds);
     if (result.error) {
+      this.log.warn(`discardCards rejected — "${name}": ${result.error} (cards: ${cardDesc})`);
       client.send("error", { message: result.error });
       return;
     }
 
+    this.log.info(`[${name}] discarded ${cardDesc} → ${this.formatEngineSnapshot(result.state)}`);
     this.engine = result.state;
     this.syncStateFromEngine();
   }
 
   private handleYield(client: Client) {
     if (!this.engine) return;
+    const name = this.playerName(client.sessionId);
+
     const result = yieldTurn(this.engine, client.sessionId);
     if (result.error) {
+      this.log.warn(`yield rejected — "${name}": ${result.error}`);
       client.send("error", { message: result.error });
       return;
     }
+
+    this.log.info(`[${name}] yielded → ${this.formatEngineSnapshot(result.state)}`);
     this.engine = result.state;
     this.syncStateFromEngine();
   }
 
   private handleUseJesterPower(client: Client) {
     if (!this.engine) return;
+    const name = this.playerName(client.sessionId);
+
     const result = useJesterPower(this.engine, client.sessionId);
     if (result.error) {
+      this.log.warn(`useJesterPower rejected — "${name}": ${result.error}`);
       client.send("error", { message: result.error });
       return;
     }
+
+    const newHand = result.state.players.get(client.sessionId)?.hand ?? [];
+    this.log.info(`[${name}] used Jester Power — new hand: ${descCards(newHand)} (${result.state.soloJestersAvailable} charges left) → ${this.formatEngineSnapshot(result.state)}`);
     this.engine = result.state;
     this.syncStateFromEngine();
   }
@@ -147,12 +185,17 @@ export class CrownfallRoom extends Room<RoomOpts> {
     if (!this.engine) return;
     if (!payload?.sessionId) return;
 
+    const callerName = this.playerName(client.sessionId);
+    const targetName = this.playerName(payload.sessionId);
+
     const result = selectNextPlayer(this.engine, client.sessionId, payload.sessionId);
     if (result.error) {
+      this.log.warn(`selectNextPlayer rejected — "${callerName}": ${result.error}`);
       client.send("error", { message: result.error });
       return;
     }
 
+    this.log.info(`[${callerName}] selected next player: "${targetName}" → ${this.formatEngineSnapshot(result.state)}`);
     this.engine = result.state;
     this.syncStateFromEngine();
   }
@@ -167,11 +210,23 @@ export class CrownfallRoom extends Room<RoomOpts> {
       .map(([sessionId, p]) => ({ sessionId, name: p.name }));
 
     this.engine = initGame(playerList);
+
+    const playerDesc = playerList.map((p) => `"${p.name}"(${p.sessionId})`).join(", ");
+    const m = this.engine.currentMonster;
+    this.log.info(
+      `Game started — players: [${playerDesc}] | first monster: ${descCard(m.cardId)} HP ${m.maxHp} ATK ${m.attack}` +
+      (this.engine.soloJestersAvailable > 0 ? ` | solo mode, ${this.engine.soloJestersAvailable} Jester charges` : "")
+    );
+
     this.syncStateFromEngine();
 
-    // Send each player their private hand
     for (const client of this.clients) {
       this.sendHandUpdate(client);
+    }
+
+    // Log initial hands
+    for (const [sid, ep] of this.engine.players) {
+      this.log.info(`  Hand dealt to "${ep.name}"(${sid}): ${descCards(ep.hand)}`);
     }
 
     this.lock();
@@ -181,10 +236,6 @@ export class CrownfallRoom extends Room<RoomOpts> {
   // Private hand delivery
   // -------------------------------------------------------------------------
 
-  /**
-   * Send a targeted message to one client with their current hand.
-   * This is the private-state fallback since @view() caused schema issues.
-   */
   private sendHandUpdate(client: Client) {
     if (!this.engine) return;
     const ep = this.engine.players.get(client.sessionId);
@@ -250,8 +301,48 @@ export class CrownfallRoom extends Room<RoomOpts> {
       syncPlayer(ps, ep, eng.currentPlayerSessionId);
     }
 
-    // Always push hand updates after any state change
     this.broadcastHandUpdates();
+  }
+
+  // -------------------------------------------------------------------------
+  // Logging helpers
+  // -------------------------------------------------------------------------
+
+  private playerName(sessionId: string): string {
+    return (
+      this.engine?.players.get(sessionId)?.name ??
+      this.state.players.get(sessionId)?.name ??
+      sessionId
+    );
+  }
+
+  private formatEngineSnapshot(state: EngineState): string {
+    const m = state.currentMonster;
+    const monsterDesc = m ? `${descCard(m.cardId)} HP ${m.currentHp}/${m.maxHp}` : "—";
+    const currentName = this.engine?.players.get(state.currentPlayerSessionId)?.name
+      ?? state.currentPlayerSessionId;
+    const discardInfo = state.discardRequired.size > 0
+      ? ` | discard: ${[...state.discardRequired.entries()].map(([sid, v]) => `${this.playerName(sid)}=${v}`).join(", ")}`
+      : "";
+    return `phase=${state.phase} | turn#${state.turnNumber} | monster=${monsterDesc} | next="${currentName}"${discardInfo}`;
+  }
+
+  private formatEvents(events: PlayEvent[]): string {
+    const parts: string[] = [];
+    for (const e of events) {
+      switch (e.type) {
+        case "monsterDefeated": parts.push(`MONSTER DEFEATED (${e.perfectKill ? "exact kill" : "overkill"})`); break;
+        case "victory":         parts.push("VICTORY"); break;
+        case "defeat":          parts.push("DEFEAT"); break;
+        case "jokerPlayed":     parts.push("joker played"); break;
+        case "draw":            parts.push(`draw ×${e.count}`); break;
+        case "heal":            parts.push(`heal ×${e.count}`); break;
+        case "shields":         parts.push(`shields +${e.amount}`); break;
+        case "discardPhase":    parts.push(`discard phase`); break;
+        case "nextPlayerSelectPhase": parts.push("select next player"); break;
+      }
+    }
+    return parts.length ? `[${parts.join(", ")}]` : "[—]";
   }
 }
 
