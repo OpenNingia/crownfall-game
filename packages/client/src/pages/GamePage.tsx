@@ -7,6 +7,7 @@ import PlayerHand from "../components/game/PlayerHand.js";
 import ActionPanel from "../components/game/ActionPanel.js";
 import PlayerStatusBar from "../components/game/PlayerStatusBar.js";
 import TurnIndicator from "../components/game/TurnIndicator.js";
+import SlashEffect from "../components/game/SlashEffect.js";
 
 export default function GamePage() {
   const { send } = useRoom();
@@ -37,6 +38,8 @@ export default function GamePage() {
         <PlayerHand />
         <ActionPanel send={send} />
       </div>
+
+      <SlashEffect />
     </motion.div>
   );
 }
