@@ -246,11 +246,11 @@ export function playCards(state: EngineState, sessionId: string, cardIds: number
 function handleJoker(
   state: EngineState,
   sessionId: string,
-  _jokerId: number,
+  jokerId: number,
   events: PlayEvent[]
 ): PlayResult {
-  // Joker: discard all board cards, negate clubs immunity next turn
-  state.discard.push(...state.boardCards);
+  // Joker: discard all board cards (including itself), negate clubs immunity next turn
+  state.discard.push(...state.boardCards, jokerId);
   state.boardCards = [];
   state.pendingDamage = 0;
   state.currentMonster.immunityNegated = true;

@@ -15,7 +15,7 @@ import {
   type EnginePlayer,
   type PlayEvent,
 } from "../game/GameEngine.js";
-import { MIN_PLAYERS, MAX_PLAYERS, type GameEvent } from "@crownfall/shared";
+import { MIN_PLAYERS, MAX_PLAYERS, JESTER_COUNT, type GameEvent } from "@crownfall/shared";
 import { GameLogger, descCard, descCards } from "../logger.js";
 
 type RoomOpts = { state: CrownfallState };
@@ -326,7 +326,9 @@ export class CrownfallRoom extends Room<RoomOpts> {
       : "";
     const handsTotal = [...state.players.values()].reduce((s, p) => s + p.hand.length, 0);
     const total = state.tavern.length + state.discard.length + state.boardCards.length + handsTotal + state.castleDeck.length + 1;
-    const decks = `tavern=${state.tavern.length} discard=${state.discard.length} board=${state.boardCards.length} hands=${handsTotal} castle=${state.castleDeck.length} [total=${total}/54]`;
+    const expected = 52 + (JESTER_COUNT[state.players.size] ?? 0);
+    const totalMark = total === expected ? `${total}✓` : `${total}/${expected}⚠`;
+    const decks = `tavern=${state.tavern.length} discard=${state.discard.length} board=${state.boardCards.length} hands=${handsTotal} castle=${state.castleDeck.length} [total=${totalMark}]`;
     return `phase=${state.phase} | turn#${state.turnNumber} | monster=${monsterDesc} | next="${currentName}" | ${decks}${discardInfo}`;
   }
 
