@@ -68,10 +68,10 @@ export class CrownfallRoom extends Room<RoomOpts> {
       return;
     }
 
-    this.log.warn(`Player disconnected — "${name}" (${client.sessionId}) — awaiting reconnection (30s)`);
+    this.log.warn(`Player disconnected — "${name}" (${client.sessionId}) — awaiting reconnection (120s)`);
 
     try {
-      await this.allowReconnection(client, 30);
+      await this.allowReconnection(client, 120);
       if (player) player.connected = true;
       if (this.engine) {
         const ep = this.engine.players.get(client.sessionId);
