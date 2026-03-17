@@ -809,37 +809,34 @@ describe("turn rotation", () => {
 describe("Animal Companion (Ace) pairing", () => {
   it("Ace + 8 of spades: both suit powers apply at combined value 9", () => {
     const state = freshState();
-    // ACE_H (hearts, val 1) + EIGHT_S (spades, val 8) → combined attack = 9
-    // hearts heal = 1, spades shield = 8
-    // give p1 extra cards to cover the remaining attack after shields
-    state.discard = [TWO_C, THREE_C, FOUR_C];
+    // ACE_H (hearts, val 1) + EIGHT_S (spades, val 8) → combined value = 9
+    // hearts heal = 9, spades shield = 9
+    state.discard = [TWO_C, THREE_C, FOUR_C, FIVE_C, SIX_D, ACE_D, TWO_D, THREE_D, FOUR_S]; // 9 cards
     setHand(state, "p1", [ACE_H, EIGHT_S, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); // plenty to discard
     injectMonster(state, { suit: "diamonds", hp: 100, attack: 20 });
     const tavernBefore = state.tavern.length;
     playCards(state, "p1", [ACE_H, EIGHT_S]);
-    // Hearts: heals 1 from discard
-    expect(state.tavern.length).toBe(tavernBefore + 1);
-    // Spades: shield 8 → effective attack = 20 - 8 = 12
-    expect(state.currentMonster.spadeReduction).toBe(8);
-    expect(state.discardRequired.get("p1")).toBe(12);
+    // Hearts: heals combined value 9 from discard
+    expect(state.tavern.length).toBe(tavernBefore + 9);
+    // Spades: shield = combined value 9 → effective attack = 20 - 9 = 11
+    expect(state.currentMonster.spadeReduction).toBe(9);
+    expect(state.discardRequired.get("p1")).toBe(11);
   });
 
   it("Ace + 8 of clubs: both suit powers apply at combined value 9", () => {
     const state = freshState();
-    // ACE_H (hearts, val 1) + EIGHT_C (clubs, val 8) → combined attack = 18
-    // hearts heal = 1, clubs damage = 8
-    // give p1 extra cards to cover the remaining attack after shields
-    state.discard = [SIX_D, FOUR_C];
+    // ACE_H (hearts, val 1) + EIGHT_C (clubs, val 8) → combined value = 9
+    // hearts heal = 9, clubs damage = 9×2 = 18
+    state.discard = [TWO_C, THREE_C, FOUR_C, FIVE_C, SIX_D, ACE_D, TWO_D, THREE_D, FOUR_S]; // 9 cards
     setHand(state, "p1", [ACE_H, EIGHT_C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); // plenty to discard
     injectMonster(state, { suit: "diamonds", hp: 20, attack: 0 });
     const tavernBefore = state.tavern.length;
     playCards(state, "p1", [ACE_H, EIGHT_C]);
-    // Hearts: heals 1 from discard
-    expect(state.tavern.length).toBe(tavernBefore + 1);
-    // Clubs: damage 18 
-    state.currentMonster.currentHp
+    // Hearts: heals combined value 9 from discard
+    expect(state.tavern.length).toBe(tavernBefore + 9);
+    // Clubs: damage = combined value 9 × 2 (clubs doubles) = 18 → HP 20 - 18 = 2
     expect(state.currentMonster.currentHp).toBe(2);
-  });  
+  });
 
   it("Ace + card of same suit: suit power applied once", () => {
     const state = freshState();

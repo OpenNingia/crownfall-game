@@ -109,6 +109,29 @@ export function computeSuitEffects(
   let jokerNegatesImmunity = false;
   let jokerClearsBoard = false;
 
+  // Animal Companion (Ace + one other card): both suits fire at the combined attack value.
+  // E.g. A♠ + 5♦ → combined = 6 → spadeShield = 6 AND diamondDraw = 6.
+  const nonJokers = cardIds.filter((id) => !isJoker(id));
+  const isAnimalCompanion = nonJokers.length === 2 && nonJokers.some((id) => getRank(id) === 1);
+
+  if (isAnimalCompanion) {
+    const combined = nonJokers.reduce((sum, id) => sum + getAttackValue(id), 0);
+    const seen = new Set<Suit>();
+    for (const id of nonJokers) {
+      const suit = getSuit(id) as Suit;
+      if (seen.has(suit)) continue; // same-suit pair: apply combined value once
+      seen.add(suit);
+      const isImmune = suit === monsterSuit && !immunityNegated;
+      switch (suit) {
+        case "hearts":   if (!isImmune) heartHeal   = combined; break;
+        case "diamonds": if (!isImmune) diamondDraw = combined; break;
+        case "spades":   if (!isImmune) spadeShield = combined; break;
+        // clubs: multiplies damage — handled by computeDamage, not here
+      }
+    }
+    return { heartHeal, diamondDraw, spadeShield, jokerNegatesImmunity, jokerClearsBoard };
+  }
+
   for (const id of cardIds) {
     if (isJoker(id)) {
       jokerNegatesImmunity = true;
@@ -119,15 +142,9 @@ export function computeSuitEffects(
     const val = getAttackValue(id);
     const isImmune = suit === monsterSuit && !immunityNegated;
     switch (suit) {
-      case "hearts":
-        if (!isImmune) heartHeal += val;
-        break;
-      case "diamonds":
-        if (!isImmune) diamondDraw += val;
-        break;
-      case "spades":
-        if (!isImmune) spadeShield += val;
-        break;
+      case "hearts":   if (!isImmune) heartHeal   += val; break;
+      case "diamonds": if (!isImmune) diamondDraw += val; break;
+      case "spades":   if (!isImmune) spadeShield += val; break;
     }
   }
 
