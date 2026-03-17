@@ -321,9 +321,9 @@ function handleMonsterAttack(
     return { state, events };
   }
 
-  // Defeat if player can't cover the damage with the total value of their hand
+  // Defeat if player can't cover the damage and has no Jester power to rescue them
   const maxCoverable = player.hand.reduce((sum, id) => sum + getAttackValue(id), 0);
-  if (maxCoverable < discardNeeded) {
+  if (maxCoverable < discardNeeded && state.soloJestersAvailable === 0) {
     state.phase = "defeat";
     events.push({ type: "defeat" });
     return { state, events };

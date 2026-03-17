@@ -1090,6 +1090,28 @@ describe("solo mode", () => {
     expect(result.error).toBeTruthy();
   });
 
+  it("insufficient hand on monster attack with Jester available → awaiting_discard, not defeat", () => {
+    // Bug regression: player hand can't cover damage but Jester Power is still available
+    // → should go to awaiting_discard so the player can use Jester Power, not immediate defeat
+    const state = freshState(1);
+    // Give a tiny hand that cannot cover the monster's attack
+    setHand(state, "p1", [ACE_H]); // value 1, can't cover attack 10
+    injectMonster(state, { suit: "spades", hp: 100, attack: 10 });
+    expect(state.soloJestersAvailable).toBe(2);
+    const result = playCards(state, "p1", [ACE_H]);
+    expect(result.state.phase).toBe("awaiting_discard"); // not defeat
+    expect(result.state.discardRequired.get("p1")).toBe(10);
+  });
+
+  it("insufficient hand on monster attack with no Jester available → defeat", () => {
+    const state = freshState(1);
+    state.soloJestersAvailable = 0;
+    setHand(state, "p1", [ACE_H]);
+    injectMonster(state, { suit: "spades", hp: 100, attack: 10 });
+    const result = playCards(state, "p1", [ACE_H]);
+    expect(result.state.phase).toBe("defeat");
+  });
+
   it("victory levels: soloJestersUsed 0/1/2 → Gold/Silver/Bronze (engine state)", () => {
     // Gold: win without using any Jester powers
     const s0 = freshState(1);
