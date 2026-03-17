@@ -8,9 +8,11 @@ import ActionPanel from "../components/game/ActionPanel.js";
 import PlayerStatusBar from "../components/game/PlayerStatusBar.js";
 import TurnIndicator from "../components/game/TurnIndicator.js";
 import SlashEffect from "../components/game/SlashEffect.js";
+import { useSfxTriggers } from "../sfx/useSfxTriggers.js";
 
 export default function GamePage() {
   const { send } = useRoom();
+  useSfxTriggers();
 
   return (
     <motion.div

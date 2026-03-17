@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useGameStore } from "../../store/gameStore.js";
 import { getSuit, getRank, getAttackValue } from "@crownfall/shared";
 import CardThumbnail from "./CardThumbnail.js";
@@ -27,18 +27,6 @@ export default function PlayerHand() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handKey]);
-
-  // Live preview: show where the dragged card would land without committing yet
-  const displayOrder = useMemo(() => {
-    if (!draggedId || !dragOverId || draggedId === dragOverId) return localOrder;
-    const next = [...localOrder];
-    const from = next.indexOf(draggedId);
-    const to = next.indexOf(dragOverId);
-    if (from === -1 || to === -1) return localOrder;
-    next.splice(from, 1);
-    next.splice(to, 0, draggedId);
-    return next;
-  }, [localOrder, draggedId, dragOverId]);
 
   // -------------------------------------------------------------------------
   // Sort actions
@@ -81,7 +69,17 @@ export default function PlayerHand() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setLocalOrder(displayOrder);
+    if (draggedId && dragOverId && draggedId !== dragOverId) {
+      setLocalOrder((prev) => {
+        const next = [...prev];
+        const from = next.indexOf(draggedId);
+        const to = next.indexOf(dragOverId);
+        if (from === -1 || to === -1) return prev;
+        next.splice(from, 1);
+        next.splice(to, 0, draggedId);
+        return next;
+      });
+    }
     setDraggedId(null);
     setDragOverId(null);
   };
@@ -122,7 +120,7 @@ export default function PlayerHand() {
           <span style={styles.empty}>No cards in hand</span>
         )}
 
-        {displayOrder.map((cardId) => {
+        {localOrder.map((cardId) => {
           const isBeingDragged = draggedId === cardId;
           const isDropTarget = dragOverId === cardId && !isBeingDragged;
           return (

@@ -1,6 +1,7 @@
 import React from "react";
 import { useGameStore } from "../../store/gameStore.js";
 import { isValidPlay, getAttackValue } from "@crownfall/shared";
+import { sfx } from "../../sfx/SoundManager.js";
 
 interface Props {
   send: (type: string, payload?: unknown) => void;
@@ -25,14 +26,15 @@ export default function ActionPanel({ send }: Props) {
     selectedValue >= myDiscardRequired;
 
   const handlePlay = () => {
-    console.log(`handlePlay. canPlay: ${canPlay}, selectedCards: ${selectedCardIds}`)
     if (!canPlay) return;
+    sfx.play("card_play");
     send("playCards", { cardIds: selectedCardIds });
     clearSelection();
   };
 
   const handleDiscard = () => {
     if (!canDiscard) return;
+    sfx.play("card_discard");
     send("discardCards", { cardIds: selectedCardIds });
     clearSelection();
   };
