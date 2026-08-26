@@ -1,0 +1,41 @@
+services:
+
+  server:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        VITE_SERVER_URL: wss://crownfall.dasi.casa
+    restart: unless-stopped
+    depends_on:
+      - server
+    networks:
+      - internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      # HTTPS
+      - "traefik.http.routers.crownfall.rule=Host(`crownfall.dasi.casa`)"
+      - "traefik.http.routers.crownfall.entrypoints=websecure"
+      - "traefik.http.routers.crownfall.tls.certresolver=letsencrypt"
+      - "traefik.http.services.crownfall.loadbalancer.server.port=80"
+      # Redirect HTTP → HTTPS
+      - "traefik.http.routers.crownfall-http.rule=Host(`crownfall.dasi.casa`)"
+      - "traefik.http.routers.crownfall-http.entrypoints=web"
+      - "traefik.http.routers.crownfall-http.middlewares=https-redirect"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
+
+networks:
+  internal:
+  traefik:
+    external: true
