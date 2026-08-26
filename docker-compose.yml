@@ -19,10 +19,10 @@ services:
       - server
     networks:
       - internal
-      - traefik
+      - traefik_net
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik"
+      - "traefik.docker.network=traefik_net"
       # HTTPS
       - "traefik.http.routers.crownfall.rule=Host(`crownfall.dasi.casa`)"
       - "traefik.http.routers.crownfall.entrypoints=websecure"
@@ -37,5 +37,5 @@ services:
 
 networks:
   internal:
-  traefik:
+  traefik_net:
     external: true
